@@ -50,6 +50,17 @@ func TestCaptureCursorBackgroundLateDescendant(t *testing.T) {
 		return nil
 	}
 	leaderPID := readPIDs(1)[0]
+	leader, err := os.FindProcess(leaderPID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaderStopped := false
+	t.Cleanup(func() {
+		if !leaderStopped {
+			_ = leader.Kill()
+		}
+		_ = leader.Release()
+	})
 	// The fork gate is still closed: the shell has no child to snapshot yet.
 	owned, err := captureCursorBackgroundProcess(root, leaderPID)
 	if err != nil {
@@ -83,14 +94,10 @@ func TestCaptureCursorBackgroundLateDescendant(t *testing.T) {
 		}
 		_ = late.Release()
 	})
-	leader, err := os.FindProcess(leaderPID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer leader.Release()
 	if err := leader.Kill(); err != nil {
 		t.Fatal(err)
 	}
+	leaderStopped = true
 	assertCursorTestProcessGone(t, leaderPID)
 	if err := owned.Terminate(); err != nil {
 		t.Fatalf("late-descendant cleanup failed: %v", err)
