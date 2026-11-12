@@ -567,7 +567,7 @@ func newIssueCommentAddTestCmd() *cobra.Command {
 	return cmd
 }
 
-func TestRunIssueCommentAddUploadsAttachmentWithoutIssueID(t *testing.T) {
+func TestRunIssueCommentAddUploadsAttachmentForResolvedIssue(t *testing.T) {
 	const issueRef = "MUL-1"
 	t.Chdir(t.TempDir())
 	attachmentPath := "comment.txt"
@@ -588,6 +588,10 @@ func TestRunIssueCommentAddUploadsAttachmentWithoutIssueID(t *testing.T) {
 			uploadedIssueID = r.FormValue("issue_id")
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "attachment-1"})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/issues/issue-1/comments":
+			if uploadedIssueID != "issue-1" {
+				http.Error(w, "attachment attachment-1 is no longer available", http.StatusConflict)
+				return
+			}
 			if err := json.NewDecoder(r.Body).Decode(&commentBody); err != nil {
 				t.Fatalf("decode comment body: %v", err)
 			}
@@ -608,8 +612,8 @@ func TestRunIssueCommentAddUploadsAttachmentWithoutIssueID(t *testing.T) {
 	if err := runIssueCommentAdd(cmd, []string{issueRef}); err != nil {
 		t.Fatalf("runIssueCommentAdd: %v", err)
 	}
-	if uploadedIssueID != "" {
-		t.Fatalf("upload issue_id = %q, want empty for a comment attachment", uploadedIssueID)
+	if uploadedIssueID != "issue-1" {
+		t.Fatalf("upload issue_id = %q, want resolved issue-1", uploadedIssueID)
 	}
 	attachmentIDs, ok := commentBody["attachment_ids"].([]any)
 	if !ok || len(attachmentIDs) != 1 || attachmentIDs[0] != "attachment-1" {
